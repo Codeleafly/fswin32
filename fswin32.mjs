@@ -1,4 +1,4 @@
-// fswin32.js
+// fswin.js
 
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -12,6 +12,7 @@ const execPromise = util.promisify(exec);
  * fswin - The ultimate Node.js module for detailed Windows file system access.
  * This version is highly robust, integrating PowerShell fallbacks for core functionality.
  * It provides comprehensive details about drives, files, and folders.
+ * This version is optimized to minimize PowerShell calls for faster performance.
  * Developed and Trained by Smart Tell Line.
  */
 
@@ -39,40 +40,52 @@ const formatBytes = (bytes, decimals = 2) => {
  */
 const executePowerShellCommand = async (command) => {
     try {
-        const { stdout } = await execPromise(`powershell "${command}"`);
+        const { stdout } = await execPromise(`powershell -ExecutionPolicy Bypass -Command "${command}"`);
         return stdout;
     } catch (error) {
-        console.error('PowerShell command failed:', error.message);
+        // console.error('PowerShell command failed:', error.message);
         return null;
     }
 };
 
-// --- Core Module Functions ---
-
 /**
- * Gets a list of accessible Windows drives. Uses fs.access with PowerShell as a fallback.
+ * Gets a list of accessible Windows drives.
+ * It first checks all A-Z drive letters directly using fs.access for speed.
+ * PowerShell is used only as a last resort fallback if no drives are found.
  * @returns {Promise<Array<string>>} An array of accessible drive letters.
  */
 export const getAccessibleDrives = async () => {
     let drives = [];
-    // Primary method: fs.access
+    const driveLetters = [];
+
+    // Primary, faster method: Check A-Z drives with fs.access
     for (let i = 65; i <= 90; i++) {
-        const driveLetter = String.fromCharCode(i);
-        const drivePath = `${driveLetter}:\\`;
+        driveLetters.push(String.fromCharCode(i));
+    }
+
+    // Use Promise.all to check all drives concurrently for max speed
+    const driveAccessChecks = driveLetters.map(async (letter) => {
+        const drivePath = `${letter}:\\`;
         try {
             await fs.access(drivePath);
-            drives.push(driveLetter);
-        } catch (error) { /* continue */ }
-    }
-    if (drives.length > 0) return drives;
+            return letter;
+        } catch (error) {
+            return null; // Drive is not accessible, return null
+        }
+    });
 
-    // Fallback method: PowerShell
-    const stdout = await executePowerShellCommand('Get-WmiObject -Class Win32_LogicalDisk | Select-Object DeviceID');
-    if (stdout) {
-        stdout.split('\n').forEach(line => {
-            const match = line.match(/^([A-Z]):/);
-            if (match) drives.push(match[1]);
-        });
+    const results = await Promise.all(driveAccessChecks);
+    drives = results.filter(Boolean); // Filter out null values
+
+    // Fallback only if no drives are found through the fast method
+    if (drives.length === 0) {
+        const stdout = await executePowerShellCommand('Get-WmiObject -Class Win32_LogicalDisk | Select-Object DeviceID');
+        if (stdout) {
+            stdout.split('\n').forEach(line => {
+                const match = line.match(/^([A-Z]):/);
+                if (match) drives.push(match[1]);
+            });
+        }
     }
     return [...new Set(drives)];
 };
@@ -83,19 +96,27 @@ export const getAccessibleDrives = async () => {
  * @returns {Promise<Object|null>} An object with drive details or null on failure.
  */
 export const getDriveDetails = async (driveLetter) => {
-    const stdout = await executePowerShellCommand(`Get-WmiObject -Class Win32_LogicalDisk | Where-Object {$_.DeviceID -eq '${driveLetter}:'} | Select-Object Size, FreeSpace, VolumeName`);
+    const command = `Get-WmiObject -Class Win32_LogicalDisk | Where-Object {$_.DeviceID -eq '${driveLetter}:'} | Select-Object Size, FreeSpace, VolumeName | Format-List`;
+    const stdout = await executePowerShellCommand(command);
+
     if (stdout) {
-        const lines = stdout.split('\n').filter(Boolean);
-        if (lines.length > 1) {
-            const data = lines[1].trim().split(/\s+/);
-            const totalSpaceBytes = parseInt(data[0]);
-            const freeSpaceBytes = parseInt(data[1]);
-            const volumeName = data[2] ? data[2] : 'N/A';
+        const lines = stdout.split('\n').filter(line => line.trim());
+        const details = {};
+        lines.forEach(line => {
+            const [key, value] = line.split(':').map(s => s.trim());
+            if (key && value) {
+                details[key] = value;
+            }
+        });
+
+        if (details.Size && details.FreeSpace) {
+            const totalSpaceBytes = parseInt(details.Size, 10);
+            const freeSpaceBytes = parseInt(details.FreeSpace, 10);
             const usedSpaceBytes = totalSpaceBytes - freeSpaceBytes;
 
             return {
                 drive: driveLetter,
-                volumeName: volumeName,
+                volumeName: details.VolumeName || 'N/A',
                 totalSpace: formatBytes(totalSpaceBytes),
                 freeSpace: formatBytes(freeSpaceBytes),
                 usedSpace: formatBytes(usedSpaceBytes),
@@ -108,8 +129,10 @@ export const getDriveDetails = async (driveLetter) => {
     return null;
 };
 
+
 /**
- * Gets detailed information about a specific file or folder, including owner details.
+ * Gets detailed information about a specific file or folder.
+ * Now it only calls PowerShell for the owner if the platform is Windows.
  * @param {string} filePath The absolute path of the file or folder.
  * @returns {Promise<Object|null>} An object with detailed information.
  */
@@ -118,6 +141,7 @@ export const getFileOrFolderDetails = async (filePath) => {
         const stats = await fs.stat(filePath);
         let owner = 'N/A';
         const isWindows = os.platform() === 'win32';
+
         if (isWindows) {
             const stdout = await executePowerShellCommand(`(Get-Item -Path "${filePath}").GetAccessControl().Owner`);
             if (stdout) {
@@ -132,7 +156,6 @@ export const getFileOrFolderDetails = async (filePath) => {
             is_folder: stats.isDirectory(),
             last_modified: stats.mtime,
             size_bytes: stats.size,
-            size_kb: (stats.size / 1024).toFixed(2),
             size_formatted: formatBytes(stats.size),
             owner: owner,
         };
@@ -140,7 +163,6 @@ export const getFileOrFolderDetails = async (filePath) => {
         if (stats.isDirectory()) {
             const { totalSize, fileCount, folderCount } = await getFolderSizeAndCount(filePath);
             details.total_size_bytes = totalSize;
-            details.total_size_kb = (totalSize / 1024).toFixed(2);
             details.total_size_formatted = formatBytes(totalSize);
             details.contains_files_count = fileCount;
             details.contains_folders_count = folderCount;
