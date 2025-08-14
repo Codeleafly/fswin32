@@ -1,0 +1,17 @@
+{
+  "name": "fswin32",
+  "version": "1.0.2",
+  "description": "",
+  "keywords": [
+    "node.js",
+    "fs",
+    "windows"
+  ],
+  "license": "ISC",
+  "author": "Smart Tell Line",
+  "type": "module",
+  "main": "fswin32.mjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
