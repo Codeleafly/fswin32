@@ -1,12 +1,12 @@
-# fswin32: Windows File System Utilities for Node.js
+# fswin32: The Ultimate Node.js Module for Windows File System Access
 
-**fswin32** is a robust and powerful Node.js module designed for comprehensive interaction with the Windows file system. It leverages both native Node.js `fs` methods and reliable PowerShell commands to provide detailed information about drives, files, and folders, ensuring high accuracy and reliability.
+**fswin32** is a robust and powerful Node.js module designed to provide comprehensive and detailed information about the Windows file system. It offers a fast, asynchronous, and user-friendly way to interact with drives, files, and folders, with built-in fallbacks to PowerShell for deeper system-level details. This module is optimized for performance, minimizing costly PowerShell calls while providing rich data when needed.
 
 ---
 
-### Installation
+## 🚀 Installation
 
-To get started, simply install the module using npm:
+To use `fswin32` in your project, install it via npm.
 
 ```bash
 npm install fswin32
@@ -14,149 +14,177 @@ npm install fswin32
 
 ---
 
-### Usage
+## 📝 Usage
 
-First, import the functions you need from the module:
+To get started, you can import the module and its functions directly into your project. The module exports three main functions: `getAccessibleDrives`, `getDriveDetails`, and `getFileOrFolderDetails`.
 
 ```javascript
-import { getAccessibleDrives, getDriveDetails, getFileOrFolderDetails } from 'fswin32';
+import {
+  getAccessibleDrives,
+  getDriveDetails,
+  getFileOrFolderDetails
+} from 'fswin32';
+
+// Now you can use these functions in your code
+// For example:
+async function main() {
+  const drives = await getAccessibleDrives();
+  console.log('Accessible Drives:', drives);
+
+  if (drives.length > 0) {
+    const driveDetails = await getDriveDetails(drives[0]);
+    console.log(`Details for drive ${drives[0]}:`, driveDetails);
+  }
+
+  const fileDetails = await getFileOrFolderDetails('C:\\Windows\\System32\\calc.exe');
+  console.log('Calculator app details:', fileDetails);
+}
+
+main();
 ```
 
 ---
 
-### Function Reference
+## 📦 API Reference
 
-This section provides a detailed explanation of each function, including its purpose, parameters, return value, and a clear code example.
+### `getAccessibleDrives()`
 
-#### `getAccessibleDrives()`
+This function returns a promise that resolves to an array of accessible drive letters on the Windows system. It uses a fast, direct file system check as its primary method and falls back to a PowerShell command only if no drives are found, ensuring optimal performance.
 
-This function retrieves a list of all accessible drive letters on the Windows system. It uses a robust approach by first attempting to access drives natively and then falling back to a PowerShell command to ensure all drives are found, even those with unusual permissions.
+#### Returns
 
--   **Returns:** A `Promise` that resolves to an `Array<string>`, containing a list of all accessible drive letters (e.g., `['C', 'D', 'E']`).
+`Promise<string[]>`: An array of strings, where each string is a drive letter (e.g., `['C', 'D', 'E']`).
 
-**Example:**
+#### Example
 
 ```javascript
-// Import the function
 import { getAccessibleDrives } from 'fswin32';
 
-async function listAllDrives() {
+async function listDrives() {
   try {
-    // Get the list of all accessible drives
     const drives = await getAccessibleDrives();
-
-    // Log the result to the console
-    console.log('Accessible Drives:', drives); 
-    // Example Output: Accessible Drives: ['C', 'D', 'E']
+    console.log('Found accessible drives:', drives);
+    // Expected output: ['C', 'D'] or similar
   } catch (error) {
     console.error('Failed to get drives:', error);
   }
 }
 
-listAllDrives();
+listDrives();
 ```
 
 ---
 
-#### `getDriveDetails(driveLetter)`
+### `getDriveDetails(driveLetter)`
 
-This function provides **detailed information about a specific drive**. It uses PowerShell to gather comprehensive data that isn't available through standard Node.js methods, such as total capacity, available free space, and the volume's name.
+This function retrieves detailed information about a specific drive, identified by its letter. It uses PowerShell to get comprehensive data like total space, free space, and volume name.
 
--   **`driveLetter`:** A `string` representing the drive letter (e.g., `'C'`). It is case-insensitive.
--   **Returns:** A `Promise` that resolves to an `Object` with drive details or `null` if the drive is not found.
+#### Parameters
 
-**The returned object will have the following properties:**
+-   `driveLetter` (`string`): The letter of the drive (e.g., `'C'`).
 
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `drive` | `string` | The drive letter. |
-| `volumeName` | `string` | The volume name of the drive (e.g., "OS"). |
-| `totalSpace` | `string` | The total capacity in a human-readable format. |
-| `freeSpace` | `string` | The available free space in a human-readable format. |
-| `usedSpace` | `string` | The used space in a human-readable format. |
-| `totalSpaceBytes` | `number` | The total capacity in bytes. |
-| `freeSpaceBytes` | `number` | The available free space in bytes. |
-| `usedSpaceBytes` | `number` | The used space in bytes. |
+#### Returns
 
-**Example:**
+`Promise<object|null>`: An object containing drive details or `null` if the drive is not found or an error occurs. The object includes:
+-   `drive` (`string`): The drive letter.
+-   `volumeName` (`string`): The name of the volume.
+-   `totalSpace` (`string`): Total space in a human-readable format (e.g., `500 GB`).
+-   `freeSpace` (`string`): Free space in a human-readable format.
+-   `usedSpace` (`string`): Used space in a human-readable format.
+-   `totalSpaceBytes` (`number`): Total space in bytes.
+-   `freeSpaceBytes` (`number`): Free space in bytes.
+-   `usedSpaceBytes` (`number`): Used space in bytes.
+
+#### Example
 
 ```javascript
-// Import the function
 import { getDriveDetails } from 'fswin32';
 
-async function logCDriveDetails() {
-  // Get details for the 'C' drive
-  const driveInfo = await getDriveDetails('C');
-
-  if (driveInfo) {
-    // Log the full object to the console
-    console.log('Drive Info:', driveInfo);
-    
-    // Access specific properties
-    console.log(`Drive Information for ${driveInfo.drive}:\\`);
-    console.log(`  - Volume Name: ${driveInfo.volumeName}`);
-    console.log(`  - Total Size:  ${driveInfo.totalSpace}`);
-    console.log(`  - Free Space:  ${driveInfo.freeSpace}`);
+async function showDriveInfo() {
+  const cDriveInfo = await getDriveDetails('C');
+  if (cDriveInfo) {
+    console.log('Drive C: Details');
+    console.log('Volume Name:', cDriveInfo.volumeName);
+    console.log('Total Space:', cDriveInfo.totalSpace);
+    console.log('Free Space:', cDriveInfo.freeSpace);
+    console.log('Used Space:', cDriveInfo.usedSpace);
   } else {
-    console.error('Drive C not found or is inaccessible.');
+    console.log('Drive C: not found or inaccessible.');
   }
 }
 
-logCDriveDetails();
+showDriveInfo();
 ```
 
 ---
 
-#### `getFileOrFolderDetails(filePath)`
+### `getFileOrFolderDetails(filePath)`
 
-This is the most powerful and versatile function in the module. It provides extensive details about any file or folder. It automatically detects if the path is a file or a directory and provides relevant, granular information. For folders, it recursively calculates the total size and counts all contained files and sub-folders. It also retrieves the file or folder owner, a feature not typically available in standard Node.js.
+This is a versatile function that provides a wealth of information about any file or folder at a given path. It includes details like size, last modified date, and ownership information (on Windows systems). For folders, it also recursively calculates the total size and counts the number of files and subfolders within it.
 
--   **`filePath`:** A `string` representing the absolute path to the file or folder (e.g., `'C:\\Users\\admin\\Documents'`).
--   **Returns:** A `Promise` that resolves to a detailed `Object`. It returns `null` if the path does not exist or is inaccessible.
+#### Parameters
 
-**Returned Object Properties:**
+-   `filePath` (`string`): The absolute path to the file or folder.
 
-| Property | Type | Applies to | Description |
-| :--- | :--- | :--- | :--- |
-| `path` | `string` | Both | The full absolute path. |
-| `name` | `string` | Both | The name of the file or folder. |
-| `is_file` | `boolean` | Both | `true` if the path is a file. |
-| `is_folder` | `boolean` | Both | `true` if the path is a folder. |
-| `last_modified` | `Date` | Both | The last modification timestamp. |
-| `owner` | `string` | Both | The owner of the file or folder. |
-| `size_formatted` | `string` | File only | The file size in a human-readable format. |
-| `total_size_formatted` | `string` | Folder only | The total size of the folder and its contents. |
-| `contains_files_count` | `number` | Folder only | The total number of files inside the folder and its subfolders. |
-| `contains_folders_count` | `number` | Folder only | The total number of subfolders inside the folder. |
+#### Returns
 
-**Example:**
+`Promise<object|null>`: An object with detailed information about the file or folder, or `null` if the path is invalid or an error occurs. The object includes:
+-   `path` (`string`): The full path of the item.
+-   `name` (`string`): The name of the file or folder.
+-   `is_file` (`boolean`): `true` if it's a file.
+-   `is_folder` (`boolean`): `true` if it's a folder.
+-   `last_modified` (`Date`): The last modification timestamp.
+-   `size_bytes` (`number`): The size in bytes (only for files).
+-   `size_formatted` (`string`): The size in a human-readable format (only for files).
+-   `owner` (`string`): The owner of the file/folder.
+-   **If it's a folder, it also includes:**
+    -   `total_size_bytes` (`number`): The total size of all contents inside the folder.
+    -   `total_size_formatted` (`string`): The formatted total size.
+    -   `contains_files_count` (`number`): The total count of files within the folder.
+    -   `contains_folders_count` (`number`): The total count of subfolders within the folder.
+
+#### Example
 
 ```javascript
-// Import the function
 import { getFileOrFolderDetails } from 'fswin32';
 
-async function logPathDetails() {
+async function showDetails() {
   // Get details for a file
-  const fileDetails = await getFileOrFolderDetails('C:\\Windows\\System32\\calc.exe');
+  const fileDetails = await getFileOrFolderDetails('C:\\Users\\Public\\Desktop\\example.txt');
   if (fileDetails) {
-    console.log('--- File Details ---');
-    console.log(`Name: ${fileDetails.name}`);
-    console.log(`Size: ${fileDetails.size_formatted}`);
-    console.log(`Owner: ${fileDetails.owner}`);
+    console.log('File Details:', fileDetails);
   }
-
-  console.log('\n');
 
   // Get details for a folder
   const folderDetails = await getFileOrFolderDetails('C:\\Program Files');
   if (folderDetails) {
-    console.log('--- Folder Details ---');
-    console.log(`Name: ${folderDetails.name}`);
-    console.log(`Total Size: ${folderDetails.total_size_formatted}`);
-    console.log(`Total Files: ${folderDetails.contains_files_count}`);
-    console.log(`Total Folders: ${folderDetails.contains_folders_count}`);
+    console.log('Folder Details:', folderDetails);
   }
 }
 
-logPathDetails();
+showDetails();
 ```
+
+---
+
+## ⚙️ How It Works
+
+`fswin32` is built to be efficient and reliable. It intelligently uses the native Node.js `fs` module for basic file system operations, which are very fast. For more specific, Windows-centric information (like drive details or file ownership), it leverages `PowerShell` commands as a robust and reliable fallback mechanism. This hybrid approach ensures you get the most comprehensive data without sacrificing performance unnecessarily.
+
+---
+
+## 🛡️ Requirements
+
+-   Node.js (LTS version recommended)
+-   Operating System: **Windows** (This module is designed specifically for Windows file system interactions and may not function as expected on other operating systems.)
+
+---
+
+## 📝 License
+
+This project is licensed under the MIT License.
+
+```
+```
+
+I hope this documentation is helpful! Is there anything else you'd like to add or change?
